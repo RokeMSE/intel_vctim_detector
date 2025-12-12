@@ -6,3 +6,7 @@
 Untitled.pdf
 /src/runs
 pyvenv.cfg
+src/bubble_pins/.env
+/src/bubble_pins/datasets
+/src/bubble_pins/output
+/src/bubble_pins/results
