@@ -7,7 +7,7 @@ from PIL import Image
 import tempfile
 import time
 
-# --- 1. CONFIGURATION & SETUP ---
+# --- CONFIG & SETUP ---
 st.set_page_config(page_title="Intel Defect Detection", layout="wide")
 
 # Sidebar for controls
@@ -20,15 +20,15 @@ conf_threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
 # B. Input Source Selection
 input_source = st.sidebar.radio("Input Source", ["Live Webcam", "Upload Image/Video"])
 
-# --- 2. MODEL LOADING (Cached) ---
+# --- MODEL LOADING (Cached) ---
 @st.cache_resource
 def load_model(source_type):
     # Update these paths to match your actual folder structure
     if source_type == "OpenVINO":
-        path = 'src/runs/detect/vctim_detector/weights/best_openvino_model/' 
+        path = 'src/runs/detect/vctim_detector3/weights/best_openvino_model/' 
         print(f"Loading OpenVINO model from {path}...")
     else:
-        path = 'src/runs/detect/vctim_detector/weights/best.pt'
+        path = 'src/runs/detect/vctim_detector3/weights/best.pt'
         print(f"Loading PyTorch model from {path}...")
     
     return YOLO(path)
@@ -39,7 +39,7 @@ except Exception as e:
     st.error(f"Error loading model: {e}. Check your file paths!")
     st.stop()
 
-# --- 3. HELPER FUNCTION: PREDICT & ANNOTATE ---
+# --- PREDICT & ANNOTATE ---
 def process_frame(frame, model, conf_thresh):
     # Run Inference
     results = model(frame, conf=conf_thresh, verbose=False)[0]
@@ -60,13 +60,13 @@ def process_frame(frame, model, conf_thresh):
     annotated_frame = results.plot()
     return annotated_frame, missing_count, normal_count
 
-# --- 4. MAIN UI LAYOUT ---
+# --- UI ---
 st.title("VCTIM Inspection System")
 
 # Create two columns for layout
 col1, col2 = st.columns([3, 1])
 
-# --- 5. LOGIC BRANCHING ---
+# --- LOGIC BRANCHING ---
 
 if input_source == "Live Webcam":
     # --- WEBCAM MODE ---
@@ -91,8 +91,8 @@ if input_source == "Live Webcam":
         stop_pressed = False
         while cap.isOpened() and not stop_pressed:
             # Check if stop button is clicked via session state or logic
-            # (Streamlit buttons reset on rerun, so we rely on the loop breaking externally or via UI interaction)
-            # A simple way in Streamlit loops is using a placeholder button to break, but we'll use the sidebar stop or rely on the loop.
+            # (Streamlit buttons reset on rerun -> rely on the loop breaking externally or via UI interaction)
+            # A simple way in Streamlit loops is using a placeholder button to break, but use the sidebar stop or rely on the loop.
             
             ret, frame = cap.read()
             if not ret:
@@ -103,7 +103,7 @@ if input_source == "Live Webcam":
             
             # Display Video
             frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-            video_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
+            video_placeholder.image(frame_rgb, channels="RGB", width='stretch')
             
             # Update Stats
             metric_total.metric("Objects Detected", missing + normal)
@@ -111,7 +111,7 @@ if input_source == "Live Webcam":
             metric_fail.metric("Missing (FAIL)", missing)
             
             if missing > 0:
-                status_placeholder.error(f"🚨 FAIL: {missing} DEFECTS")
+                status_placeholder.error(f"FAIL: {missing} DEFECTS")
             else:
                 status_placeholder.success("✅ SYSTEM NORMAL")
             
@@ -119,7 +119,6 @@ if input_source == "Live Webcam":
             time.sleep(0.01)
 
 elif input_source == "Upload Image/Video":
-    # --- UPLOAD MODE ---
     uploaded_file = st.sidebar.file_uploader("Choose a file...", type=['jpg', 'jpeg', 'png', 'mp4', 'avi'])
     
     if uploaded_file is not None:
@@ -141,9 +140,7 @@ elif input_source == "Upload Image/Video":
                 
                 # Inference
                 annotated_frame, missing, normal = process_frame(frame, model, conf_threshold)
-                
-                # Display
-                st.image(annotated_frame, caption="Processed Image", use_container_width=True)
+                st.image(annotated_frame, caption="Processed Image", width='stretch')
                 
                 # Stats
                 file_pass.metric("Normal", normal)
@@ -170,7 +167,7 @@ elif input_source == "Upload Image/Video":
                     
                     # Convert BGR to RGB for st.image
                     frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                    st_frame.image(frame_rgb, caption="Video Inference", use_container_width=True)
+                    st_frame.image(frame_rgb, caption="Video Inference", width='stretch')
                     
                     # Live Stats Update during video playback
                     file_pass.metric("Normal", normal)
