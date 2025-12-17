@@ -8,7 +8,7 @@ import tempfile
 import time
 
 # --- CONFIG & SETUP ---
-st.set_page_config(page_title="Intel Defect Detection", layout="wide")
+st.set_page_config(page_title="VCTIM Detection", layout="wide")
 
 # Sidebar for controls
 st.sidebar.title("Settings")
@@ -25,10 +25,10 @@ input_source = st.sidebar.radio("Input Source", ["Live Webcam", "Upload Image/Vi
 def load_model(source_type):
     # Update these paths to match your actual folder structure
     if source_type == "OpenVINO":
-        path = 'src/runs/detect/vctim_detector3/weights/best_openvino_model/' 
+        path = 'src/runs/detect/vctim_detector2/weights/best_openvino_model/' 
         print(f"Loading OpenVINO model from {path}...")
     else:
-        path = 'src/runs/detect/vctim_detector3/weights/best.pt'
+        path = 'src/runs/detect/vctim_detector2/weights/best.pt'
         print(f"Loading PyTorch model from {path}...")
     
     return YOLO(path)
@@ -134,13 +134,19 @@ elif input_source == "Upload Image/Video":
             st.subheader("Inference Result")
             
             if file_type == 'image':
-                # Load Image
+                # 1. Load Image (PIL loads as RGB)
                 image = Image.open(uploaded_file)
-                frame = np.array(image)
+                frame_rgb = np.array(image)
                 
-                # Inference
-                annotated_frame, missing, normal = process_frame(frame, model, conf_threshold)
-                st.image(annotated_frame, caption="Processed Image", width='stretch')
+                # 2. CONVERT RGB -> BGR for YOLO Inference
+                frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+                
+                # 3. Inference (Pass BGR image)
+                annotated_bgr, missing, normal = process_frame(frame_bgr, model, conf_threshold)
+                
+                # 4. Display (Convert BGR result back to RGB for Streamlit)
+                annotated_rgb = cv2.cvtColor(annotated_bgr, cv2.COLOR_BGR2RGB)
+                st.image(annotated_rgb, caption="Processed Image", use_container_width=True)
                 
                 # Stats
                 file_pass.metric("Normal", normal)
@@ -151,7 +157,7 @@ elif input_source == "Upload Image/Video":
                     file_status.success("Clean Board")
             
             elif file_type == 'video':
-                # Save video to temp file because OpenCV needs a path
+                # Save video to temp file
                 tfile = tempfile.NamedTemporaryFile(delete=False) 
                 tfile.write(uploaded_file.read())
                 
@@ -159,17 +165,18 @@ elif input_source == "Upload Image/Video":
                 st_frame = st.empty()
                 
                 while cap.isOpened():
-                    ret, frame = cap.read()
+                    ret, frame = cap.read() # OpenCV reads video as BGR automatically
                     if not ret:
                         break
                     
+                    # Inference (Frame is already BGR, so it's correct)
                     annotated_frame, missing, normal = process_frame(frame, model, conf_threshold)
                     
-                    # Convert BGR to RGB for st.image
+                    # Display (Convert BGR to RGB for Streamlit)
                     frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                    st_frame.image(frame_rgb, caption="Video Inference", width='stretch')
+                    st_frame.image(frame_rgb, caption="Video Inference", use_container_width=True)
                     
-                    # Live Stats Update during video playback
+                    # Live Stats
                     file_pass.metric("Normal", normal)
                     file_fail.metric("Missing", missing)
                     
