@@ -7,8 +7,8 @@ from PIL import Image
 import tempfile
 import time
 
-# --- CONFIG & SETUP ---
-st.set_page_config(page_title="VCTIM Detection", layout="wide")
+# --- 1. CONFIGURATION & SETUP ---
+st.set_page_config(page_title="VCTIMs  Detection", layout="wide")
 
 # Sidebar for controls
 st.sidebar.title("Settings")
@@ -25,10 +25,10 @@ input_source = st.sidebar.radio("Input Source", ["Live Webcam", "Upload Image/Vi
 def load_model(source_type):
     # Update these paths to match your actual folder structure
     if source_type == "OpenVINO":
-        path = 'src/runs/detect/vctim_detector2/weights/best_openvino_model/' 
+        path = './runs/detect/vctim_detector2/weights/best_openvino_model/' 
         print(f"Loading OpenVINO model from {path}...")
     else:
-        path = 'src/runs/detect/vctim_detector2/weights/best.pt'
+        path = './runs/detect/vctim_detector2/weights/best.pt'
         print(f"Loading PyTorch model from {path}...")
     
     return YOLO(path)

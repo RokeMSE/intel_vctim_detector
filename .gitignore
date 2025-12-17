@@ -9,5 +9,6 @@ src/bubble_pins/.env
 /src/bubble_pins/datasets
 /src/bubble_pins/output
 /src/bubble_pins/results
+/runs
 /src/bubble_pins/data
-/src/runs/detect/vctim_detector
+/src/runs
