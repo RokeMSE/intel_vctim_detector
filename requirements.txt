@@ -9,3 +9,4 @@ omegaconf
 requests
 fiftyone
 umap-learn
+label-studio
