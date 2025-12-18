@@ -1,0 +1,17 @@
+services:
+  defect-detector:
+    build: .
+    container_name: intel_vctim_system
+    ports:
+      - "8501:8501"
+    volumes:
+      # Persist logs to your host machine
+      - ./logs:/app/logs
+      # Optional: Map camera device (Linux only)
+      # - /dev/video0:/dev/video0 
+    devices:
+      # Pass Webcam to container (Linux/WSL2 feature)
+      - "/dev/video0:/dev/video0"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1

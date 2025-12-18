@@ -1,183 +1,176 @@
 import streamlit as st
 import cv2
-import torch
-from ultralytics import YOLO
 import numpy as np
+from ultralytics import YOLO
 from PIL import Image
-import tempfile
 import time
+import logging
+from logging.handlers import RotatingFileHandler
+import os
+import psutil # For system monitoring
+import pandas as pd
 
-# --- CONFIG & SETUP ---
-st.set_page_config(page_title="VCTIM Detection", layout="wide")
+# --- 1. SETUP LOGGING (The "Black Box" Recorder) ---
+# This sets up a log file that rotates every 5MB, keeping 3 backups.
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+log_file = 'inference.log'
 
-# Sidebar for controls
-st.sidebar.title("Settings")
+my_handler = RotatingFileHandler(log_file, mode='a', maxBytes=5*1024*1024, backupCount=3, encoding=None, delay=0)
+my_handler.setFormatter(log_formatter)
+my_handler.setLevel(logging.INFO)
 
-# A. Model Selection
-model_source = st.sidebar.radio("Model Backend", ["PyTorch (.pt)", "OpenVINO"])
-conf_threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
+app_logger = logging.getLogger('root')
+app_logger.setLevel(logging.INFO)
+app_logger.addHandler(my_handler)
 
-# B. Input Source Selection
-input_source = st.sidebar.radio("Input Source", ["Live Webcam", "Upload Image/Video"])
+# Also print to stdout for Docker logs
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+app_logger.addHandler(console)
 
-# --- MODEL LOADING (Cached) ---
+# --- 2. CONFIGURATION ---
+st.set_page_config(page_title="Intel VCTIM Inspector", layout="wide", page_icon="🛡️")
+
+# Initialize Session State for Metrics
+if 'total_count' not in st.session_state: st.session_state['total_count'] = 0
+if 'fail_count' not in st.session_state: st.session_state['fail_count'] = 0
+
+# Sidebar
+st.sidebar.header("Settings")
+model_type = st.sidebar.radio("Model Backend", ["OpenVINO (CPU Speed)", "PyTorch (GPU/Std)"])
+conf_thresh = st.sidebar.slider("Confidence", 0.1, 1.0, 0.4)
+input_source = st.sidebar.radio("Input Source", ["Live Webcam", "Upload File"])
+
+# --- 3. MODEL LOADER ---
 @st.cache_resource
-def load_model(source_type):
-    # Update these paths to match your actual folder structure
-    if source_type == "OpenVINO":
-        path = 'src/runs/detect/vctim_detector2/weights/best_openvino_model/' 
-        print(f"Loading OpenVINO model from {path}...")
-    else:
-        path = 'src/runs/detect/vctim_detector2/weights/best.pt'
-        print(f"Loading PyTorch model from {path}...")
+def load_model(backend):
+    try:
+        if backend == "OpenVINO (CPU Speed)":
+            # Update this path to where your Docker volume maps the weights
+            path = "src/runs/detect/vctim_detector3/weights/best_openvino_model/" 
+            app_logger.info(f"Loading OpenVINO model from {path}")
+            return YOLO(path)
+        else:
+            path = "src/runs/detect/vctim_detector3/weights/best.pt"
+            app_logger.info(f"Loading PyTorch model from {path}")
+            return YOLO(path)
+    except Exception as e:
+        app_logger.error(f"Model Load Error: {e}")
+        st.error(f"Failed to load model: {e}")
+        return None
+
+model = load_model(model_type)
+
+# --- 4. INFERENCE ENGINE ---
+def run_inference(frame):
+    start_time = time.time()
     
-    return YOLO(path)
-
-try:
-    model = load_model(model_source)
-except Exception as e:
-    st.error(f"Error loading model: {e}. Check your file paths!")
-    st.stop()
-
-# --- PREDICT & ANNOTATE ---
-def process_frame(frame, model, conf_thresh):
-    # Run Inference
+    # Run YOLO
     results = model(frame, conf=conf_thresh, verbose=False)[0]
     
-    missing_count = 0
-    normal_count = 0
+    missing = 0
+    normal = 0
     
-    # Count classes
     for box in results.boxes:
         c = int(box.cls)
         label = model.names[c]
         if "missing" in label.lower():
-            missing_count += 1
+            missing += 1
         else:
-            normal_count += 1
+            normal += 1
             
-    # Plot results
-    annotated_frame = results.plot()
-    return annotated_frame, missing_count, normal_count
-
-# --- UI ---
-st.title("VCTIM Inspection System")
-
-# Create two columns for layout
-col1, col2 = st.columns([3, 1])
-
-# --- LOGIC BRANCHING ---
-
-if input_source == "Live Webcam":
-    # --- WEBCAM MODE ---
-    with col2:
-        st.subheader("Real-Time Stats")
-        status_placeholder = st.empty()
-        metric_total = st.empty()
-        metric_pass = st.empty()
-        metric_fail = st.empty()
-
-    with col1:
-        st.subheader("Live Feed")
-        video_placeholder = st.empty()
-        start_btn = st.button("Start Inspection")
-        stop_btn = st.button("Stop")
+    # Draw
+    annotated = results.plot()
     
-    if start_btn:
-        cap = cv2.VideoCapture(0) # Change index if using external camera
-        if not cap.isOpened():
-            st.error("Could not open webcam.")
-        
-        stop_pressed = False
-        while cap.isOpened() and not stop_pressed:
-            # Check if stop button is clicked via session state or logic
-            # (Streamlit buttons reset on rerun -> rely on the loop breaking externally or via UI interaction)
-            # A simple way in Streamlit loops is using a placeholder button to break, but use the sidebar stop or rely on the loop.
-            
-            ret, frame = cap.read()
-            if not ret:
-                break
-            
-            # Process
-            annotated_frame, missing, normal = process_frame(frame, model, conf_threshold)
-            
-            # Display Video
-            frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-            video_placeholder.image(frame_rgb, channels="RGB", width='stretch')
-            
-            # Update Stats
-            metric_total.metric("Objects Detected", missing + normal)
-            metric_pass.metric("Normal (PASS)", normal)
-            metric_fail.metric("Missing (FAIL)", missing)
-            
-            if missing > 0:
-                status_placeholder.error(f"FAIL: {missing} DEFECTS")
-            else:
-                status_placeholder.success("✅ SYSTEM NORMAL")
-            
-            # Tiny sleep to allow UI updates
-            time.sleep(0.01)
-
-elif input_source == "Upload Image/Video":
-    uploaded_file = st.sidebar.file_uploader("Choose a file...", type=['jpg', 'jpeg', 'png', 'mp4', 'avi'])
+    # Log Logic
+    latency = (time.time() - start_time) * 1000
+    if missing > 0:
+        app_logger.warning(f"DEFECT DETECTED: {missing} missing covers. Latency: {latency:.1f}ms")
     
-    if uploaded_file is not None:
-        file_type = uploaded_file.type.split('/')[0]
-        
-        with col2:
-            st.subheader("File Stats")
-            file_status = st.empty()
-            file_pass = st.empty()
-            file_fail = st.empty()
+    return annotated, missing, normal, latency
 
-        with col1:
-            st.subheader("Inference Result")
+# --- 5. UI LAYOUT ---
+tab1, tab2 = st.tabs(["Inspection Dashboard", "System Logs & Monitor"])
+
+with tab1:
+    st.title("Production Inspection")
+    col_vid, col_stat = st.columns([3, 1])
+    
+    with col_stat:
+        st.subheader("Batch Stats")
+        kpi1 = st.metric("Total Inspected", st.session_state['total_count'])
+        kpi2 = st.metric("Defects Found", st.session_state['fail_count'], delta_color="inverse")
+        status_box = st.empty()
+
+    with col_vid:
+        if input_source == "Live Webcam":
+            start = st.button("Start Stream")
+            stop = st.button("Stop Stream")
+            st_frame = st.empty()
             
-            if file_type == 'image':
-                # 1. Load Image (PIL loads as RGB)
-                image = Image.open(uploaded_file)
-                frame_rgb = np.array(image)
+            if start:
+                cap = cv2.VideoCapture(0)
+                app_logger.info("Camera started by user.")
                 
-                # 2. CONVERT RGB -> BGR for YOLO Inference
-                frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-                
-                # 3. Inference (Pass BGR image)
-                annotated_bgr, missing, normal = process_frame(frame_bgr, model, conf_threshold)
-                
-                # 4. Display (Convert BGR result back to RGB for Streamlit)
-                annotated_rgb = cv2.cvtColor(annotated_bgr, cv2.COLOR_BGR2RGB)
-                st.image(annotated_rgb, caption="Processed Image", use_container_width=True)
-                
-                # Stats
-                file_pass.metric("Normal", normal)
-                file_fail.metric("Missing", missing)
-                if missing > 0:
-                    file_status.error("Defects Found!")
-                else:
-                    file_status.success("Clean Board")
-            
-            elif file_type == 'video':
-                # Save video to temp file
-                tfile = tempfile.NamedTemporaryFile(delete=False) 
-                tfile.write(uploaded_file.read())
-                
-                cap = cv2.VideoCapture(tfile.name)
-                st_frame = st.empty()
-                
-                while cap.isOpened():
-                    ret, frame = cap.read() # OpenCV reads video as BGR automatically
-                    if not ret:
-                        break
+                while cap.isOpened() and not stop:
+                    ret, frame = cap.read()
+                    if not ret: break
                     
-                    # Inference (Frame is already BGR, so it's correct)
-                    annotated_frame, missing, normal = process_frame(frame, model, conf_threshold)
+                    frame_res, miss, norm, lat = run_inference(frame)
                     
-                    # Display (Convert BGR to RGB for Streamlit)
-                    frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                    st_frame.image(frame_rgb, caption="Video Inference", use_container_width=True)
+                    # Update Stats
+                    st.session_state['total_count'] += (miss + norm)
+                    st.session_state['fail_count'] += miss
                     
-                    # Live Stats
-                    file_pass.metric("Normal", normal)
-                    file_fail.metric("Missing", missing)
+                    # Display
+                    st_frame.image(frame_res, channels="BGR", width='stretch')
+                    
+                    # Status Indicator
+                    if miss > 0:
+                        status_box.error(f"🚨 FAIL DETECTED ({miss})")
+                    else:
+                        status_box.success(f"✅ SYSTEM NORMAL ({lat:.0f}ms)")
                     
                 cap.release()
+                app_logger.info("Camera stopped.")
+
+        elif input_source == "Upload File":
+            uploaded = st.file_uploader("Upload Image", type=['jpg','png'])
+            if uploaded:
+                img = Image.open(uploaded)
+                img = np.array(img)
+                # Convert RGB to BGR for YOLO
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                
+                res, miss, norm, lat = run_inference(img)
+                
+                # Convert back for Display
+                res = cv2.cvtColor(res, cv2.COLOR_BGR2RGB)
+                st.image(res, caption="Inference Result")
+                app_logger.info(f"Processed upload. Result: {miss} Fail, {norm} Pass")
+
+with tab2:
+    st.header("System Health Monitor")
+    
+    # 1. Resource Usage
+    c1, c2 = st.columns(2)
+    cpu = psutil.cpu_percent()
+    ram = psutil.virtual_memory().percent
+    c1.metric("CPU Usage", f"{cpu}%")
+    c2.metric("RAM Usage", f"{ram}%")
+    
+    # 2. Log Viewer
+    st.subheader("Application Logs (tail -n 20)")
+    if os.path.exists(log_file):
+        with open(log_file, "r") as f:
+            lines = f.readlines()
+            # Show last 20 lines
+            for line in reversed(lines[-20:]):
+                if "WARNING" in line:
+                    st.error(line.strip())
+                elif "INFO" in line:
+                    st.info(line.strip())
+                else:
+                    st.text(line.strip())
+    else:
+        st.warning("No logs found yet.")
