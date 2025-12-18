@@ -7,46 +7,45 @@ import time
 import logging
 from logging.handlers import RotatingFileHandler
 import os
-import psutil # For system monitoring
+from typing import Dict
+import psutil
+from io import BytesIO
 import pandas as pd
 
-# --- 1. SETUP LOGGING (The "Black Box" Recorder) ---
+# --- 1. LOGGING ---
 # This sets up a log file that rotates every 5MB, keeping 3 backups.
 log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 log_file = 'inference.log'
 
-my_handler = RotatingFileHandler(log_file, mode='a', maxBytes=5*1024*1024, backupCount=3, encoding=None, delay=0)
+""" my_handler = RotatingFileHandler(log_file, mode='a', maxBytes=5*1024*1024, backupCount=3, encoding=None, delay=0)
 my_handler.setFormatter(log_formatter)
-my_handler.setLevel(logging.INFO)
+my_handler.setLevel(logging.INFO) """
 
 app_logger = logging.getLogger('root')
 app_logger.setLevel(logging.INFO)
-app_logger.addHandler(my_handler)
+""" app_logger.addHandler(my_handler) """
 
-# Also print to stdout for Docker logs
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
 app_logger.addHandler(console)
 
-# --- 2. CONFIGURATION ---
-st.set_page_config(page_title="Intel VCTIM Inspector", layout="wide", page_icon="🛡️")
+# --- 2. CONFIG ---
+st.set_page_config(page_title="VCTIM Inspector", layout="wide", page_icon="")
 
 # Initialize Session State for Metrics
 if 'total_count' not in st.session_state: st.session_state['total_count'] = 0
 if 'fail_count' not in st.session_state: st.session_state['fail_count'] = 0
 
-# Sidebar
 st.sidebar.header("Settings")
 model_type = st.sidebar.radio("Model Backend", ["OpenVINO (CPU Speed)", "PyTorch (GPU/Std)"])
 conf_thresh = st.sidebar.slider("Confidence", 0.1, 1.0, 0.4)
 input_source = st.sidebar.radio("Input Source", ["Live Webcam", "Upload File"])
 
-# --- 3. MODEL LOADER ---
+# --- 3. MODEL & STORE LOADER ---
 @st.cache_resource
 def load_model(backend):
     try:
         if backend == "OpenVINO (CPU Speed)":
-            # Update this path to where your Docker volume maps the weights
             path = "src/runs/detect/vctim_detector3/weights/best_openvino_model/" 
             app_logger.info(f"Loading OpenVINO model from {path}")
             return YOLO(path)
@@ -61,16 +60,19 @@ def load_model(backend):
 
 model = load_model(model_type)
 
+@st.cache_resource
+def get_static_store() -> Dict:
+    """This dictionary is initialized once and can be used to store the files uploaded"""
+    return {}
+
 # --- 4. INFERENCE ENGINE ---
 def run_inference(frame):
     start_time = time.time()
-    
-    # Run YOLO
+
     results = model(frame, conf=conf_thresh, verbose=False)[0]
-    
+
     missing = 0
     normal = 0
-    
     for box in results.boxes:
         c = int(box.cls)
         label = model.names[c]
@@ -135,11 +137,24 @@ with tab1:
                 app_logger.info("Camera stopped.")
 
         elif input_source == "Upload File":
-            uploaded = st.file_uploader("Upload Image", type=['jpg','png'])
+            static_store = get_static_store()
+            
+            uploaded= st.file_uploader("Upload Image", type=['jpg','png'], accept_multiple_files=True, key="upload")
+            if st.button("Clear Uploads"):
+                static_store.clear()
+                st.session_state.pop('upload', None)  # Clear the uploader widget state too
+                st.write("Uploads cleared.")
+                st.rerun()
+
             if uploaded:
-                img = Image.open(uploaded)
+                for file in uploaded:
+                    static_store[file.name] = file.getvalue()
+                st.write(f"Uploaded {len(uploaded)} images.")
+
+            for file in static_store:
+                img = Image.open(BytesIO(static_store[file]))
                 img = np.array(img)
-                # Convert RGB to BGR for YOLO
+                # Convert RGB to BGR for YOLO (ESSENTIAL)
                 img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
                 
                 res, miss, norm, lat = run_inference(img)
@@ -147,7 +162,8 @@ with tab1:
                 # Convert back for Display
                 res = cv2.cvtColor(res, cv2.COLOR_BGR2RGB)
                 st.image(res, caption="Inference Result")
-                app_logger.info(f"Processed upload. Result: {miss} Fail, {norm} Pass")
+                app_logger.info(f"Processed {file} Result: {miss} Fail, {norm} Pass")
+            
 
 with tab2:
     st.header("System Health Monitor")
@@ -159,12 +175,10 @@ with tab2:
     c1.metric("CPU Usage", f"{cpu}%")
     c2.metric("RAM Usage", f"{ram}%")
     
-    # 2. Log Viewer
-    st.subheader("Application Logs (tail -n 20)")
+    """ st.subheader("Application Logs (tail -n 20)")
     if os.path.exists(log_file):
         with open(log_file, "r") as f:
             lines = f.readlines()
-            # Show last 20 lines
             for line in reversed(lines[-20:]):
                 if "WARNING" in line:
                     st.error(line.strip())
@@ -173,4 +187,5 @@ with tab2:
                 else:
                     st.text(line.strip())
     else:
-        st.warning("No logs found yet.")
+        st.warning("No logs found yet.") """
+
