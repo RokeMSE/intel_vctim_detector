@@ -146,7 +146,7 @@ elif input_source == "Upload Image/Video":
                 
                 # 4. Display (Convert BGR result back to RGB for Streamlit)
                 annotated_rgb = cv2.cvtColor(annotated_bgr, cv2.COLOR_BGR2RGB)
-                st.image(annotated_rgb, caption="Processed Image", use_container_width=True)
+                st.image(annotated_rgb, caption="Processed Image", width='stretch')
                 
                 # Stats
                 file_pass.metric("Normal", normal)
@@ -174,7 +174,7 @@ elif input_source == "Upload Image/Video":
                     
                     # Display (Convert BGR to RGB for Streamlit)
                     frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                    st_frame.image(frame_rgb, caption="Video Inference", use_container_width=True)
+                    st_frame.image(frame_rgb, caption="Video Inference", width='stretch')
                     
                     # Live Stats
                     file_pass.metric("Normal", normal)
