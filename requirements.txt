@@ -8,5 +8,5 @@ pandas
 omegaconf
 requests
 fiftyone
-umap-learn
+umap-learn>=0.5
 label-studio
