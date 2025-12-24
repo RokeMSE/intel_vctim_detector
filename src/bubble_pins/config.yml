@@ -1,9 +1,8 @@
 data:
   class_path: anomalib.data.Folder
   init_args:
-    root: ../data/VCTIM/
-    normal_dir: "train/good"          
-    abnormal_dir: "test/bad"      
+    root: ./data
+    normal_dir: "train/good"               
     image_size: 256
     center_crop: null
     normalization: imagenet
