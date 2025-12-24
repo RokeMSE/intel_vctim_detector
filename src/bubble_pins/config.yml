@@ -6,7 +6,7 @@ data:
     image_size: 256
     center_crop: null
     normalization: imagenet
-    train_batch_size: 72
+    train_batch_size: 32
     eval_batch_size: 32
     num_workers: 8
     task: classification
