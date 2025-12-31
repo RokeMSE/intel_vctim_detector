@@ -9,6 +9,7 @@ src/bubble_pins/.env
 /src/bubble_pins/datasets
 /src/bubble_pins/output
 /src/bubble_pins/results
+/src/bubble_pins/data
 /src/runs/detect/vctim_detector
 src/yolo11n.pt
 src/bubble_pins/yolo11m.pt
