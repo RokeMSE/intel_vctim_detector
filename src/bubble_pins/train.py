@@ -11,15 +11,8 @@ import logging
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-def train_improved_model(
-    data_root="./datasets/socket_pins",
-    image_size=256,
-    batch_size=16,
-    num_workers=4,
-    max_epochs=50,
-):
-    """Train improved Patchcore model for socket pins"""
-    
+
+def train_improved_model(data_root="./datasets/socket_pins", image_size=256, batch_size=16, num_workers=4, max_epochs=50):
     logger.info("Initializing improved Patchcore model...")
     
     # Model configuration
