@@ -10,3 +10,8 @@ requests
 fiftyone
 umap-learn>=0.5
 label-studio
+streamlit
+ultralytics
+psutil
+pillow
+lightning
