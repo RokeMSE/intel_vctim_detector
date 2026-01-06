@@ -5,6 +5,8 @@ from ultralytics import YOLO
 from PIL import Image
 import logging
 from anomalib.deploy import TorchInferencer
+from anomalib import TaskType
+task_type = TaskType.SEGMENTATION
 import processor 
 import torch
 import dotenv
