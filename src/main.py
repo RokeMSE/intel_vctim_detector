@@ -119,7 +119,7 @@ def run_socket_inference(inferencer, img, threshold):
 
 # --- UI & BULK LOGIC ---
 
-st.title("Unified Inspection System")
+st.title("Inspection System")
 
 st.sidebar.header("Configuration")
 mode = st.sidebar.selectbox("Select Inspection Mode", ["VCTIM Detection", "Socket Pin Defect"])

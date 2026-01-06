@@ -13,7 +13,7 @@ def get_binary_image(img):
     adaptive_result = cv2.adaptiveThreshold(
         blurred, 255, 
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-        cv2.THRESH_BINARY_INV, 45, 10
+        cv2.THRESH_BINARY_INV, 55, 7
     )
     return adaptive_result
 
@@ -22,12 +22,12 @@ def get_pin_coordinates(binary_img):
     circles = cv2.HoughCircles(
         binary_img, 
         cv2.HOUGH_GRADIENT, 
-        dp=1,           
-        minDist=10,     
-        param1=60,      
-        param2=10,      
-        minRadius=5,    
-        maxRadius=20    
+        dp=1,           # Inverse ratio of accumulator resolution
+        minDist=15,     # Minimum distance between circle centers
+        param1=60,      # Upper threshold for edge detection
+        param2=10,      # Accumulator threshold for center detection
+        minRadius=5,    # Minimum circle radius
+        maxRadius=17    # Maximum circle radius
     )
     
     coords = []
@@ -59,7 +59,7 @@ def extract_pins(img, coords, crop_size=32):
     # CLAHE for detail enhancement
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     enhanced = clahe.apply(gray)
-    enhanced = cv2.bilateralFilter(enhanced, 5, 50, 50)
+    enhanced = cv2.GaussianBlur(enhanced, (5, 5), 0)
     
     pins = []
     h, w = enhanced.shape
