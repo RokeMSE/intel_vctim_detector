@@ -17,3 +17,7 @@ src/yolo11m.pt
 /src/bubble_pins/datasets/socket_pins
 /etc
 /Include
+/src/bubble_pins/datasets/socket_pins/test
+/src/bubble_pins/datasets
+/src/vctim/data
+/src/__pycache__

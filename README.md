@@ -13,14 +13,14 @@ The system utilizes a microservice architecture via Docker, combining deep learn
 
 ### 1. VCTIM Inspection Module
 
-* **Methodology:** Object Detection using YOLO (Ultralytics).
+* **Methodology:** Object Detection using a custom weighted YOLOv11 model.
 * **Classes:** `missing_vctim`, `normal`.
-* **Output:** Bounding box visualization and counts of missing vs. normal components.
+* **Output:** Bounding box visualization and counts of missing vs normal components.
 
 ### 2. Socket Pin Inspection Module
 
 * **Methodology:** Two-stage pipeline.
-* **Stage 1 (Preprocessing):** Uses Adaptive Thresholding and Hough Circle Transform to locate and crop individual pins from the socket image.
+* **Stage 1 (Preprocessing):** Uses Adaptive Thresholding and Hough Circle Transform to locate and crop individual pins from the socket image (allows for fine-grained fintuning).
 * **Stage 2 (Inference):** Uses an Anomalib-based unsupervised anomaly detection model to score each pin.
 
 
@@ -92,8 +92,8 @@ This command will:
 ## Technical Details
 
 * **Framework:** Streamlit
-* **Image Processing:** OpenCV (Headless)
-* **Deep Learning:** PyTorch, Ultralytics YOLO, Anomalib
+* **Image Processing:** OpenCV
+* **Deep Learning:** PyTorch, Ultralytics YOLOv11, Anomalib
 * **Containerization:** Docker (Python 3.10 Slim base)
 
 ## Troubleshooting

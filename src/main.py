@@ -7,7 +7,7 @@ import logging
 from anomalib.deploy import TorchInferencer
 from anomalib import TaskType
 task_type = TaskType.SEGMENTATION
-import processor 
+import processor
 import torch
 import dotenv
 dotenv.load_dotenv()
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 @st.cache_resource
 def load_yolo_model():
     """Load YOLO model for VCTIM detection"""
-    return YOLO('../vctim/runs/detect/vctim_detector3/weights/best.pt')
+    return YOLO('C:/Users/rokeM/Downloads/Intel/Prj1/intel_vctim_detector/src/vctim/runs/detect/vctim_detector8/weights/best.pt')
 
 @st.cache_resource
 def load_anomalib_model():
@@ -32,9 +32,9 @@ def load_anomalib_model():
 
 # --- INFERENCE FUNCTIONS ---
 
-def run_vctim_inference(model, img):
-    """Run YOLO inference for missing components"""
-    results = model(img)
+def run_vctim_inference(model, img, threshold):
+    # Pass 'conf=threshold' to filter predictions by confidence
+    results = model(img, conf=threshold)
     res = results[0].plot()
     
     # Count stats
@@ -54,8 +54,8 @@ def run_vctim_inference(model, img):
             
     return res, missing_count, normal_count
 
-def run_socket_inference(inferencer, img, threshold):
-    """Run Pipeline: Preprocess -> Crop Pins -> Anomaly Detect"""
+def run_socket_inference(inferencer, img, threshold, progress_callback=None):
+    """Run Pipeline: Preprocess -> Crop Pins -> Anomaly Detect (With Progress Tracking)"""
     # 1. Preprocessing
     binary = processor.get_binary_image(img)
     coords = processor.get_pin_coordinates(binary)
@@ -65,16 +65,22 @@ def run_socket_inference(inferencer, img, threshold):
 
     # 2. Extract Pins
     pins_data = processor.extract_pins(img, coords)
+    total_pins = len(pins_data)
     
     # 3. Anomaly Inference
     defect_count = 0
     good_count = 0
     scores_list = []
-    pin_details = [] # Store details for UI inspection
+    pin_details = [] 
     
     res_img = img.copy()
     
     for i, pin in enumerate(pins_data):
+        # --- UPDATE PROGRESS ---
+        if progress_callback:
+            # Update progress (0.0 to 1.0)
+            progress_callback((i + 1) / total_pins)
+            
         # Run inference
         pred = inferencer.predict(image=pin['crop'])
         
@@ -126,16 +132,23 @@ st.title("Inspection System")
 st.sidebar.header("Configuration")
 mode = st.sidebar.selectbox("Select Inspection Mode", ["VCTIM Detection", "Socket Pin Defect"])
 
-# Controls
-threshold = 0.5
+# Initialize threshold variable
+threshold = 0.5 
 show_crops = False
 
+# Dynamic Sidebar Controls based on Mode
 if mode == "Socket Pin Defect":
     st.sidebar.divider()
     st.sidebar.subheader("🎛️ Sensitivity & View")
     threshold = st.sidebar.slider("Anomaly Threshold", 0.0, 1.0, 0.5, 0.01)
-    # Checkbox to trigger crop display
     show_crops = st.sidebar.checkbox("Show Pin Details", value=True)
+
+elif mode == "VCTIM Detection":
+    st.sidebar.divider()
+    st.sidebar.subheader("🎛️ Sensitivity")
+    # Added VCTIM specific threshold (YOLO Confidence)
+    threshold = st.sidebar.slider("Detection Confidence", 0.0, 1.0, 0.25, 0.05)
+
 
 uploaded_files = st.sidebar.file_uploader(
     "Upload Images (Bulk Supported)", 
@@ -166,12 +179,16 @@ if uploaded_files:
             
             if mode == "VCTIM Detection":
                 try:
-                    res_img, miss, norm = run_vctim_inference(model_yolo, img)
+                    # UPDATED CALL: Passed 'threshold' here
+                    res_img, miss, norm = run_vctim_inference(model_yolo, img, threshold)
+                    
                     res_img_rgb = cv2.cvtColor(res_img, cv2.COLOR_BGR2RGB)
-                    col2.image(res_img_rgb, caption="Result", width='stretch')
+                    col2.image(res_img_rgb, caption=f"Result (Conf: {threshold})", width='stretch')
+                    
                     m1, m2 = st.columns(2)
                     m1.metric("Missing", miss, delta_color="inverse")
                     m2.metric("Normal", norm)
+                    
                     total_defects += miss
                     total_passed += norm
                 except Exception as e:
@@ -179,8 +196,20 @@ if uploaded_files:
 
             elif mode == "Socket Pin Defect":
                 try:
-                    # Get pin_details back from function
-                    res_img, defects, good, msg, pin_details = run_socket_inference(model_ad, img_rgb, threshold)
+                    # Create a placeholder for the pin progress
+                    st.write("Inspecting Pins...")
+                    pin_progress = st.progress(0)
+                    
+                    # Pass the .progress method as the callback
+                    res_img, defects, good, msg, pin_details = run_socket_inference(
+                        model_ad, 
+                        img_rgb, 
+                        threshold,
+                        progress_callback=pin_progress.progress
+                    )
+                    
+                    # Clear the progress bar after completion (optional)
+                    pin_progress.empty()
                     
                     col2.image(res_img, caption=f"Result (Thresh: {threshold})", width='stretch')
                     m1, m2 = st.columns(2)
