@@ -7,7 +7,7 @@ import logging
 from anomalib.deploy import TorchInferencer
 from anomalib import TaskType
 task_type = TaskType.SEGMENTATION
-import processor_old
+import processor
 import torch
 import dotenv
 dotenv.load_dotenv()
@@ -55,16 +55,19 @@ def run_vctim_inference(model, img, threshold):
     return res, missing_count, normal_count
 
 def run_socket_inference(inferencer, img, threshold, progress_callback=None):
+    if device := torch.device('cuda' if torch.cuda.is_available() else 'cpu'):
+        inferencer.to(device)
+
     """Run Pipeline: Preprocess -> Crop Pins -> Anomaly Detect (With Progress Tracking)"""
     # 1. Preprocessing
-    binary = processor_old.get_binary_image(img)
-    coords = processor_old.get_pin_coordinates(binary)
+    binary = processor.get_binary_image(img)
+    coords = processor.get_pin_coordinates(binary)
     
     if not coords:
         return img, 0, 0, "No pins detected.", []
 
     # 2. Extract Pins
-    pins_data = processor_old.extract_pins(img, coords)
+    pins_data = processor.extract_pins(img, coords)
     total_pins = len(pins_data)
     
     # 3. Anomaly Inference
