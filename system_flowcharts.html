@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VCTIM Inspection Workflows</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0A4A6E;
+            --accent: #00B4D8;
+            --warning: #F77F00;
+            --success: #06D6A0;
+            --bg: #F8FAFB;
+            --text: #1A2332;
+            --border: #CAD2D9;
+            --card: #FFFFFF;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #E8EEF2 100%);
+            color: var(--text);
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #5A6C7D;
+            margin-bottom: 50px;
+            font-family: 'DM Mono', monospace;
+            font-size: 0.95rem;
+        }
+
+        .workflow-section {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 20px rgba(10, 74, 110, 0.08);
+            border: 1px solid var(--border);
+        }
+
+        .workflow-title {
+            font-size: 1.75rem;
+            color: var(--primary);
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid var(--accent);
+            display: inline-block;
+        }
+
+        .flowchart {
+            display: flex;
+            flex-direction: row;
+            gap: 0;
+            align-items: stretch;
+            padding: 20px 0;
+            overflow-x: auto;
+            min-height: 400px;
+        }
+
+        .flow-step {
+            min-width: 280px;
+            max-width: 320px;
+            position: relative;
+            animation: fadeInLeft 0.6s ease-out backwards;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .flow-step:nth-child(1) { animation-delay: 0.1s; }
+        .flow-step:nth-child(2) { animation-delay: 0.2s; }
+        .flow-step:nth-child(3) { animation-delay: 0.3s; }
+        .flow-step:nth-child(4) { animation-delay: 0.4s; }
+        .flow-step:nth-child(5) { animation-delay: 0.5s; }
+        .flow-step:nth-child(6) { animation-delay: 0.6s; }
+        .flow-step:nth-child(7) { animation-delay: 0.7s; }
+        .flow-step:nth-child(8) { animation-delay: 0.8s; }
+
+        @keyframes fadeInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .step-card {
+            background: linear-gradient(135deg, #FFFFFF 0%, #F5F9FC 100%);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.3s ease;
+            position: relative;
+            height: 100%;
+            text-align: center;
+        }
+
+        .step-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 180, 216, 0.15);
+            border-color: var(--accent);
+        }
+
+        .step-card.user { border-top: 5px solid var(--accent); }
+        .step-card.system { border-top: 5px solid var(--primary); }
+        .step-card.output { border-top: 5px solid var(--success); }
+        .step-card.process { border-top: 5px solid var(--warning); }
+
+        .step-icon {
+            width: 56px;
+            height: 56px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--icon-bg-1, #E8F4F8) 0%, var(--icon-bg-2, #D0E8F0) 100%);
+        }
+
+        .step-card.user .step-icon { --icon-bg-1: #E0F4FF; --icon-bg-2: #B8E6FF; }
+        .step-card.system .step-icon { --icon-bg-1: #D4E8F0; --icon-bg-2: #B0D4E8; }
+        .step-card.output .step-icon { --icon-bg-1: #D4F4E8; --icon-bg-2: #B0E8D4; }
+        .step-card.process .step-icon { --icon-bg-1: #FFF4E0; --icon-bg-2: #FFE8B8; }
+
+        .step-content {
+            flex: 1;
+            width: 100%;
+        }
+
+        .step-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .step-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        .step-description {
+            font-size: 0.88rem;
+            color: #5A6C7D;
+            line-height: 1.5;
+        }
+
+        .connector {
+            width: 40px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--primary) 100%);
+            align-self: center;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .connector::after {
+            content: '';
+            position: absolute;
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+            border-left: 8px solid var(--primary);
+        }
+
+        .sub-steps {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 2px dashed var(--border);
+            width: 100%;
+        }
+
+        .sub-step {
+            padding: 8px 0;
+            font-size: 0.85rem;
+            color: #5A6C7D;
+            position: relative;
+            text-align: left;
+            padding-left: 20px;
+        }
+
+        .sub-step::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 14px;
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            border: 2px solid var(--card);
+        }
+
+        @media (max-width: 768px) {
+            .workflow-section {
+                padding: 25px 15px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .flowchart {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .flow-step {
+                width: 100%;
+                max-width: 100%;
+                min-width: unset;
+            }
+
+            .connector {
+                width: 2px;
+                height: 40px;
+                background: linear-gradient(180deg, var(--accent) 0%, var(--primary) 100%);
+            }
+
+            .connector::after {
+                right: auto;
+                bottom: -6px;
+                left: 50%;
+                top: auto;
+                transform: translateX(-50%);
+                border-left: 6px solid transparent;
+                border-right: 6px solid transparent;
+                border-top: 8px solid var(--primary);
+                border-bottom: none;
+            }
+
+            .step-card {
+                padding: 20px;
+            }
+
+            .step-icon {
+                width: 48px;
+                height: 48px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Inspection Workflows</h1>
+        <p class="subtitle">Industrial Quality Control & Defect Detection System</p>
+
+        <!-- Workflow 1: VCTIM Inspection -->
+        <div class="workflow-section">
+            <h2 class="workflow-title">Workflow 1: VCTIM Inspection</h2>
+            
+            <div class="flowchart">
+                <!-- Step 1: Image Acquisition -->
+                <div class="flow-step">
+                    <div class="step-card user">
+                        <div class="step-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00B4D8" stroke-width="2">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                                <circle cx="12" cy="13" r="4"/>
+                            </svg>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-label">Human User</div>
+                            <div class="step-title">Image Acquisition</div>
+                            <div class="step-description">
+                                User captures all VCTIMs (entire Test Socket PCB) with camera and inputs into TRB PC to access the local system
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="connector"></div>
+
+                <!-- Step 2: Inference -->
+                <div class="flow-step">
+                    <div class="step-card system">
+                        <div class="step-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0A4A6E" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                                <line x1="8" y1="21" x2="16" y2="21"/>
+                                <line x1="12" y1="17" x2="12" y2="21"/>
+                                <circle cx="7" cy="9" r="1" fill="#0A4A6E"/>
+                                <circle cx="12" cy="9" r="1" fill="#0A4A6E"/>
+                                <circle cx="17" cy="9" r="1" fill="#0A4A6E"/>
+                            </svg>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-label">TRB PC</div>
+                            <div class="step-title">Inference</div>
+                            <div class="step-description">
+                                System infers the total amount of VCTIMs and identifies missing VCTIMs in the captures
+                            </div>
+                            <div class="sub-steps">
+                                <div class="sub-step">Traceability (if needed): Decodes/Manual input/OCR the serial number to log the unit into the database</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="connector"></div>
+
+                <!-- Step 3: Output -->
+                <div class="flow-step">
+                    <div class="step-card output">
+                        <div class="step-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#06D6A0" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                                <line x1="2" y1="20" x2="22" y2="20"/>
+                                <path d="M8 7h8M8 11h5"/>
+                            </svg>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-label">Output to Floor</div>
+                            <div class="step-title">Defect Map Display</div>
+                            <div class="step-description">
+                                A "Defect Map" is displayed on the floor monitor, highlighting whether a unit is missing VCTIM or not along side a confident score for the operator to inspect
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow 2: Pin Defect Detection -->
+        <div class="workflow-section">
+            <h2 class="workflow-title">Workflow 2: Pin Defect Detection</h2>
+            
+            <div class="flowchart">
+                <!-- Step 1: Image Acquisition -->
+                <div class="flow-step">
+                    <div class="step-card user">
+                        <div class="step-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00B4D8" stroke-width="2">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                                <circle cx="12" cy="13" r="4"/>
+                                <line x1="12" y1="10" x2="12" y2="13"/>
+                                <line x1="10.5" y1="13" x2="13.5" y2="13"/>
+                            </svg>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-label">Human User</div>
+                            <div class="step-title">Image Acquisition</div>
+                            <div class="step-description">
+                                User uses high-resolution station camera to capture each Socket and input into TRB PC to access the local system
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="connector"></div>
+
+                <!-- Step 2: Standardization -->
+                <!-- <div class="flow-step">
+                    <div class="step-card process">
+                        <div class="step-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#F77F00" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                <path d="M3 9h18M9 3v18"/>
+                            </svg>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-label">TRB PC</div>
+                            <div class="step-title">Standardization</div>
+                            <div class="step-description">
+                                Receives the image and warps it to a fixed template to remove "shifts" or size variations
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="connector"></div> -->
+
+                <!-- Step 3: Grid Extraction -->
+                <!-- <div class="flow-step">
+                    <div class="step-card process">
+                        <div class="step-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#F77F00" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                <rect x="14" y="14" width="7" height="7" rx="1"/>
+                            </svg>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-label">TRB PC</div>
+                            <div class="step-title">Grid Extraction</div>
+                            <div class="step-description">
+                                Calculates the theoretical grid coordinates (finding where all pins should be)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="connector"></div> -->
+
+                <!-- Step 4: Patching & Embedding -->
+                <div class="flow-step">
+                    <div class="step-card process">
+                        <div class="step-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#F77F00" stroke-width="2">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                                <line x1="12" y1="22.08" x2="12" y2="12"/>
+                            </svg>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-label">TRB PC</div>
+                            <div class="step-title">Patching & Embedding</div>
+                            <div class="step-description">
+                                Crops 1,000+ tiny patches and generates ResNet18 embeddings for each
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="connector"></div>
+
+                <!-- Step 5: Anomaly Detection -->
+                <div class="flow-step">
+                    <div class="step-card system">
+                        <div class="step-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0A4A6E" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 6v6l4 2"/>
+                                <circle cx="12" cy="12" r="2" fill="#0A4A6E"/>
+                            </svg>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-label">TRB PC</div>
+                            <div class="step-title">Anomaly Detection</div>
+                            <div class="step-description">
+                                Multi-stage defect detection process
+                            </div>
+                            <div class="sub-steps">
+                                <div class="sub-step">The "No-Miss" Check: Every coordinate is scored</div>
+                                <div class="sub-step">Missing/Bent/Burnt/etc. Logic: If a coordinate score exceeds the threshold, it is flagged</div>
+                                <div class="sub-step">Potential undocumented defects found</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="connector"></div>
+
+                <!-- Step 6: Output -->
+                <div class="flow-step">
+                    <div class="step-card output">
+                        <div class="step-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#06D6A0" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                                <line x1="2" y1="20" x2="22" y2="20"/>
+                                <path d="M8 7h8M8 11h5"/>
+                            </svg>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-label">Output to Floor</div>
+                            <div class="step-title">Defect Map Display</div>
+                            <div class="step-description">
+                                A "Defect Map" is displayed on the floor monitor, highlighting specific pin coordinates for the operator to inspect
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
