@@ -14,21 +14,29 @@ dotenv.load_dotenv()
 
 # --- CONFIG ---
 st.set_page_config(page_title="Unified Industrial Inspector", layout="wide")
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
+# --- SIDEBAR: DEVICE & MODE ---
+st.sidebar.header("System Settings")
+# Device Selection (CPU vs GPU)
+device_choice = st.sidebar.radio("Inference Device", ["CPU", "GPU"])
+device = "cuda" if device_choice == "GPU" and torch.cuda.is_available() else "cpu"
+
+if device_choice == "GPU" and not torch.cuda.is_available():
+    st.sidebar.warning("GPU selected but CUDA not available. Falling back to CPU.")
 
 # --- LOAD MODELS ---
 @st.cache_resource
-def load_yolo_model():
-    """Load YOLO model for VCTIM detection"""
-    return YOLO('C:/Users/rokeM/Downloads/Intel/Prj1/intel_vctim_detector/src/vctim/runs/detect/vctim_detector/weights/best.pt')
+def load_yolo_model(device):
+    # Update paths to relative paths for Docker compatibility
+    model = YOLO('C:/Users/rokeM/Downloads/Intel/Prj1/intel_vctim_detector/src/vctim/runs/detect/vctim_detector/weights/best.pt')
+    model.to(device)
+    return model
 
 @st.cache_resource
-def load_anomalib_model():
-    """Load Anomalib model for Socket Pin detection"""
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    inferencer = TorchInferencer(path='C:/Users/rokeM/Downloads/Intel/Prj1/intel_vctim_detector/src/bubble_pins/results/Patchcore/socket_pins/latest/weights/torch/model.pt', device=device)
-    return inferencer
+def load_anomalib_model(device):
+    # Update paths to relative paths for Docker compatibility
+    path = 'C:/Users/rokeM/Downloads/Intel/Prj1/intel_vctim_detector/src/bubble_pins/results/Patchcore/socket_pins/latest/weights/torch/model.pt'
+    return TorchInferencer(path=path, device=device)
 
 # --- INFERENCE FUNCTIONS ---
 
@@ -55,9 +63,6 @@ def run_vctim_inference(model, img, threshold):
     return res, missing_count, normal_count
 
 def run_socket_inference(inferencer, img, threshold, progress_callback=None):
-    if device := torch.device('cuda' if torch.cuda.is_available() else 'cpu'):
-        inferencer.to(device)
-
     """Run Pipeline: Preprocess -> Crop Pins -> Anomaly Detect (With Progress Tracking)"""
     # 1. Preprocessing
     binary = processor.get_binary_image(img)
@@ -146,12 +151,28 @@ if mode == "Socket Pin Defect":
     threshold = st.sidebar.slider("Anomaly Threshold", 0.0, 1.0, 0.5, 0.01)
     show_crops = st.sidebar.checkbox("Show Pin Details", value=True)
 
-elif mode == "VCTIM Detection":
-    st.sidebar.divider()
-    st.sidebar.subheader("🎛️ Sensitivity")
-    # Added VCTIM specific threshold (YOLO Confidence)
+if mode == "VCTIM Detection":
+    st.sidebar.subheader("🎛️ VCTIM Settings")
     threshold = st.sidebar.slider("Detection Confidence", 0.0, 1.0, 0.25, 0.05)
+    use_webcam = st.sidebar.checkbox("Use Webcam (Real-time)")
 
+    model_yolo = load_yolo_model(device)
+
+    if use_webcam:
+        st.subheader("Real-time VCTIM Detection")
+        # Streamlit component for webcam input
+        img_file_buffer = st.camera_input("Take a snapshot or use live view")
+        
+        if img_file_buffer:
+            bytes_data = img_file_buffer.getvalue()
+            cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+            
+            res_img, miss, norm = run_vctim_inference(model_yolo, cv2_img, threshold)
+            
+            col1, col2 = st.columns(2)
+            col1.image(cv2.cvtColor(res_img, cv2.COLOR_BGR2RGB), caption="Inference Result")
+            col2.metric("Missing", miss, delta_color="inverse")
+            col2.metric("Normal", norm)
 
 uploaded_files = st.sidebar.file_uploader(
     "Upload Images (Bulk Supported)", 
@@ -167,9 +188,9 @@ if uploaded_files:
     total_passed = 0
     
     if mode == "VCTIM Detection":
-        model_yolo = load_yolo_model()
+        model_yolo = load_yolo_model(device)
     else:
-        model_ad = load_anomalib_model()
+        model_ad = load_anomalib_model(device)
     
     for i, uploaded_file in enumerate(uploaded_files):
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
