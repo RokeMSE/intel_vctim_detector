@@ -15,3 +15,4 @@ src/bubble_pins/.env
 /src/vctim/data
 /src/vctim/runs
 /src/models
+*.blob
