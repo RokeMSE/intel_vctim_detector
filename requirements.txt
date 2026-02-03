@@ -10,6 +10,7 @@ requests
 fiftyone
 umap-learn>=0.5
 streamlit
+fpdf2
 ultralytics
 psutil
 pillow

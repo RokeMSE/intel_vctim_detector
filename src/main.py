@@ -10,7 +10,18 @@ task_type = TaskType.SEGMENTATION
 import processor
 import torch
 import dotenv
+import report_generator
 dotenv.load_dotenv()
+
+# --- SESSION STATE FOR REPORT ---
+if 'image_results' not in st.session_state:
+    st.session_state.image_results = []
+if 'report_ready' not in st.session_state:
+    st.session_state.report_ready = False
+if 'last_files_key' not in st.session_state:
+    st.session_state.last_files_key = None
+if 'cached_totals' not in st.session_state:
+    st.session_state.cached_totals = {'defects': 0, 'passed': 0}
 
 # --- CONFIG ---
 st.set_page_config(page_title="Unified Industrial Inspector", layout="wide")
@@ -187,104 +198,203 @@ uploaded_files = st.sidebar.file_uploader(
 )
 
 if uploaded_files:
-    st.write(f"### Processing {len(uploaded_files)} images in **{mode}** mode")
-    progress_bar = st.progress(0)
+    # Generate cache key from file names, sizes, mode, and threshold
+    current_files_key = f"{mode}_{threshold}_{'-'.join([f.name for f in uploaded_files])}"
     
-    total_defects = 0
-    total_passed = 0
+    # Check if we can use cached results
+    use_cache = (st.session_state.last_files_key == current_files_key and 
+                 len(st.session_state.image_results) > 0)
     
-    if mode == "VCTIM Detection":
-        model_yolo = load_yolo_model(device)
-    else:
-        model_ad = load_anomalib_model(device)
-    
-    for i, uploaded_file in enumerate(uploaded_files):
-        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        img = cv2.imdecode(file_bytes, 1)
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    if use_cache:
+        # Use cached results - don't rerun inference
+        st.write(f"### Showing cached results for {len(uploaded_files)} images in **{mode}** mode")
+        st.info("📋 Results loaded from cache. Upload new files or change settings to re-run inspection.")
         
-        with st.expander(f"Image: {uploaded_file.name}", expanded=True):
-            col1, col2 = st.columns(2)
-            col1.image(img_rgb, caption="Original", width='stretch')
+        total_defects = st.session_state.cached_totals['defects']
+        total_passed = st.session_state.cached_totals['passed']
+        image_results = st.session_state.image_results
+        
+        # Display cached results in expanders
+        for i, result in enumerate(image_results):
+            with st.expander(f"Image: {result['filename']}", expanded=True):
+                col1, col2 = st.columns(2)
+                col1.image(result['original_img'], caption="Original", width='stretch')
+                col2.image(result['result_img'], caption="Result", width='stretch')
+                
+                m1, m2 = st.columns(2)
+                m1.metric("Defects" if mode == "Socket Pin Defect" else "Missing", result['defects'], delta_color="inverse")
+                m2.metric("Passed" if mode == "Socket Pin Defect" else "Normal", result['passed'])
+                
+                # Show annotation fields (read from session state keys)
+                st.divider()
+                st.markdown("**📝 Report Annotations (Optional)**")
+                key_prefix = "pin" if mode == "Socket Pin Defect" else "vctim"
+                unit_id = st.text_input("Unit ID", key=f"{key_prefix}_unit_{i}", placeholder="e.g., UNIT-001")
+                comments = st.text_area("Comments", key=f"{key_prefix}_comment_{i}", placeholder="Add notes...")
+                
+                # Update the stored result with current annotation values
+                result['unit_id'] = unit_id
+                result['comments'] = comments
+    else:
+        # Run fresh inference
+        st.write(f"### Processing {len(uploaded_files)} images in **{mode}** mode")
+        progress_bar = st.progress(0)
+        
+        total_defects = 0
+        total_passed = 0
+        image_results = []  # Store results for report
+        
+        if mode == "VCTIM Detection":
+            model_yolo = load_yolo_model(device)
+        else:
+            model_ad = load_anomalib_model(device)
+    
+        for i, uploaded_file in enumerate(uploaded_files):
+            file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+            img = cv2.imdecode(file_bytes, 1)
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
-            if mode == "VCTIM Detection":
-                try:
-                    # UPDATED CALL: Passed 'threshold' here
-                    res_img, miss, norm = run_vctim_inference(model_yolo, img, threshold)
-                    
-                    res_img_rgb = cv2.cvtColor(res_img, cv2.COLOR_BGR2RGB)
-                    col2.image(res_img_rgb, caption=f"Result (Conf: {threshold})", width='stretch')
-                    
-                    m1, m2 = st.columns(2)
-                    m1.metric("Missing", miss, delta_color="inverse")
-                    m2.metric("Normal", norm)
-                    
-                    total_defects += miss
-                    total_passed += norm
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
-            elif mode == "Socket Pin Defect":
-                try:
-                    # Create a placeholder for the pin progress
-                    st.write("Inspecting Pins...")
-                    pin_progress = st.progress(0)
-                    
-                    # Pass the .progress method as the callback
-                    res_img, defects, good, msg, pin_details = run_socket_inference(
-                        model_ad, 
-                        img_rgb, 
-                        threshold,
-                        progress_callback=pin_progress.progress
-                    )
-                    
-                    # Clear the progress bar after completion (optional)
-                    pin_progress.empty()
-                    
-                    col2.image(res_img, caption=f"Result (Thresh: {threshold})", width='stretch')
-                    m1, m2 = st.columns(2)
-                    m1.metric("Defects", defects, delta_color="inverse")
-                    m2.metric("Good Pins", good)
-                    st.caption(msg)
-                    
-                    total_defects += defects
-                    total_passed += good
-                    
-                    # --- NEW: DISPLAY PIN CROPS ---
-                    if show_crops and pin_details:
+            with st.expander(f"Image: {uploaded_file.name}", expanded=True):
+                col1, col2 = st.columns(2)
+                col1.image(img_rgb, caption="Original", width='stretch')
+                
+                if mode == "VCTIM Detection":
+                    try:
+                        res_img, miss, norm = run_vctim_inference(model_yolo, img, threshold)
+                        
+                        res_img_rgb = cv2.cvtColor(res_img, cv2.COLOR_BGR2RGB)
+                        col2.image(res_img_rgb, caption=f"Result (Conf: {threshold})", width='stretch')
+                        
+                        m1, m2 = st.columns(2)
+                        m1.metric("Missing", miss, delta_color="inverse")
+                        m2.metric("Normal", norm)
+                        
+                        total_defects += miss
+                        total_passed += norm
+                        
+                        # User annotation inputs
                         st.divider()
-                        st.markdown("#### 🔍 Individual Pin Inspection")
+                        st.markdown("**📝 Report Annotations (Optional)**")
+                        unit_id = st.text_input("Unit ID", key=f"vctim_unit_{i}", placeholder="e.g., UNIT-001")
+                        comments = st.text_area("Comments", key=f"vctim_comment_{i}", placeholder="Add notes about this unit...")
                         
-                        # Filter to show defects first if any exist
-                        sorted_pins = sorted(pin_details, key=lambda x: x['score'], reverse=True)
+                        # Store result for report
+                        image_results.append({
+                            'filename': uploaded_file.name,
+                            'original_img': img_rgb,
+                            'result_img': res_img_rgb,
+                            'defects': miss,
+                            'passed': norm,
+                            'unit_id': unit_id,
+                            'comments': comments,
+                            'pin_details': None
+                        })
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+                elif mode == "Socket Pin Defect":
+                    try:
+                        st.write("Inspecting Pins...")
+                        pin_progress = st.progress(0)
                         
-                        # Display in a grid of 8 columns
-                        cols = st.columns(8)
-                        for idx, p in enumerate(sorted_pins):
-                            c = cols[idx % 8]
-                            
-                            # Color border hack using caption/emoji or PIL
-                            # Simple way: Emoji status in caption
-                            status_icon = "🔴" if p['is_defect'] else "🟢"
-                            
-                            c.image(p['crop'], width='stretch')
-                            c.caption(f"**{status_icon} {p['score']:.2f}**")
-                            
-                            # Limit display to avoid crashing browser if 1000 pins
-                            if idx > 63: 
-                                st.caption("... remaining pins hidden for performance ...")
-                                break
-                                
-                except Exception as e:
-                    st.error(f"Error: {e}")
+                        res_img, defects, good, msg, pin_details = run_socket_inference(
+                            model_ad, 
+                            img_rgb, 
+                            threshold,
+                            progress_callback=pin_progress.progress
+                        )
+                        
+                        pin_progress.empty()
+                        
+                        col2.image(res_img, caption=f"Result (Thresh: {threshold})", width='stretch')
+                        m1, m2 = st.columns(2)
+                        m1.metric("Defects", defects, delta_color="inverse")
+                        m2.metric("Good Pins", good)
+                        st.caption(msg)
+                        
+                        total_defects += defects
+                        total_passed += good
+                        
+                        # User annotation inputs
+                        st.markdown("**📝 Report Annotations (Optional)**")
+                        unit_id = st.text_input("Unit ID", key=f"pin_unit_{i}", placeholder="e.g., UNIT-001")
+                        comments = st.text_area("Comments", key=f"pin_comment_{i}", placeholder="Add notes about this unit...")
+                        
+                        # Show pin crops if enabled
+                        if show_crops and pin_details:
+                            st.divider()
+                            st.markdown("#### 🔍 Individual Pin Inspection")
+                            sorted_pins = sorted(pin_details, key=lambda x: x['score'], reverse=True)
+                            cols = st.columns(8)
+                            for idx, p in enumerate(sorted_pins):
+                                c = cols[idx % 8]
+                                status_icon = "🔴" if p['is_defect'] else "🟢"
+                                c.image(p['crop'], width='stretch')
+                                c.caption(f"**{status_icon} {p['score']:.2f}**")
+                                if idx > 63: 
+                                    st.caption("... remaining pins hidden for performance ...")
+                                    break
+                        
+                        # Store result for report
+                        image_results.append({
+                            'filename': uploaded_file.name,
+                            'original_img': img_rgb,
+                            'result_img': res_img,
+                            'defects': defects,
+                            'passed': good,
+                            'unit_id': unit_id,
+                            'comments': comments,
+                            'pin_details': pin_details
+                        })
+                                    
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
-        progress_bar.progress((i + 1) / len(uploaded_files))
+            progress_bar.progress((i + 1) / len(uploaded_files))
+        
+        # Update cache after fresh inference
+        st.session_state.last_files_key = current_files_key
+        st.session_state.cached_totals = {'defects': total_defects, 'passed': total_passed}
 
+    # Common code for both cached and fresh results
+    st.session_state.image_results = image_results
+    st.session_state.total_defects = total_defects
+    st.session_state.total_passed = total_passed
+    st.session_state.current_mode = mode
+    st.session_state.current_device = device
+    st.session_state.report_ready = True
+    
+    # Batch Summary
     st.divider()
     st.subheader("Batch Summary")
     s1, s2 = st.columns(2)
     s1.metric("Total Defects", total_defects, delta_color="inverse")
     s2.metric("Total Passed", total_passed)
+    
+    # PDF Report Generation
+    st.divider()
+    st.subheader("📄 Generate Report")
+    
+    # Generate PDF immediately (no button click needed to avoid rerun)
+    try:
+        pdf_bytes = report_generator.generate_report(
+            mode=mode,
+            device=device,
+            image_results=image_results,
+            total_defects=total_defects,
+            total_passed=total_passed
+        )
+        
+        st.download_button(
+            label="🖨️ Download PDF Report",
+            data=pdf_bytes,
+            file_name=f"inspection_report_{mode.replace(' ', '_')}_{__import__('datetime').datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            type="primary"
+        )
+        st.caption("Click the button above to download your inspection report.")
+    except Exception as e:
+        st.error(f"Error generating report: {e}")
 
 else:
     st.info("Upload one or more images to begin bulk inspection.")
