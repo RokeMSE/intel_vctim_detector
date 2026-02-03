@@ -4,7 +4,7 @@ import numpy as np
 from ultralytics import YOLO
 from PIL import Image
 import logging
-from anomalib.deploy import TorchInferencer
+from anomalib.deploy import TorchInferencer, OpenVINOInferencer
 from anomalib import TaskType
 task_type = TaskType.SEGMENTATION
 import processor
@@ -28,15 +28,21 @@ if device_choice == "GPU" and not torch.cuda.is_available():
 @st.cache_resource
 def load_yolo_model(device):
     # Update paths to relative paths for Docker compatibility
-    model = YOLO('C:/Users/rokeM/Downloads/Intel/Prj1/intel_vctim_detector/src/vctim/runs/detect/vctim_detector/weights/best.pt')
+    model = YOLO('./src/models/VCTIM/detect/vctim_detector/weights/best.pt')
     model.to(device)
     return model
 
 @st.cache_resource
 def load_anomalib_model(device):
-    # Update paths to relative paths for Docker compatibility
-    path = 'C:/Users/rokeM/Downloads/Intel/Prj1/intel_vctim_detector/src/bubble_pins/results/Patchcore/socket_pins/latest/weights/torch/model.pt'
-    return TorchInferencer(path=path, device=device)
+    if device == "cpu":
+        # Paths to OpenVINO IR files
+        ov_path = './src/models/PIN/openvino/latest/weights/model.xml'
+        st.sidebar.info("Using OpenVINO for CPU acceleration")
+        return OpenVINOInferencer(path=ov_path, device="CPU")
+    else:
+        # Default Torch Inference for GPU
+        torch_path = './src/models/PIN/torch/latest/weights/torch/model.pt'
+        return TorchInferencer(path=torch_path, device=device)
 
 # --- INFERENCE FUNCTIONS ---
 

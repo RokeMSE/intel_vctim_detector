@@ -14,3 +14,4 @@ src/bubble_pins/.env
 /src/__pycache__
 /src/vctim/data
 /src/vctim/runs
+/src/models
