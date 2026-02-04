@@ -340,8 +340,8 @@ if uploaded_files:
         for i, result in enumerate(image_results):
             with st.expander(f"Image: {result['filename']}", expanded=True):
                 col1, col2 = st.columns(2)
-                col1.image(result['original_img'], caption="Original", use_container_width=True)
-                col2.image(result['result_img'], caption="Result", use_container_width=True)
+                col1.image(result['original_img'], caption="Original", width='stretch')
+                col2.image(result['result_img'], caption="Result", width='stretch')
                 
                 m1, m2 = st.columns(2)
                 m1.metric("Defects" if mode == "Socket Pin Defect" else "Missing", result['defects'], delta_color="inverse")
@@ -381,14 +381,14 @@ if uploaded_files:
             
             with st.expander(f"Image: {uploaded_file.name}", expanded=True):
                 col1, col2 = st.columns(2)
-                col1.image(img_rgb, caption="Original", use_container_width=True)
+                col1.image(img_rgb, caption="Original", width='stretch')
                 
                 if mode == "VCTIM Detection":
                     try:
                         res_img, miss, norm = run_vctim_inference(model_yolo, img, threshold)
                         
                         res_img_rgb = cv2.cvtColor(res_img, cv2.COLOR_BGR2RGB)
-                        col2.image(res_img_rgb, caption=f"Result (Conf: {threshold})", use_container_width=True)
+                        col2.image(res_img_rgb, caption=f"Result (Conf: {threshold})", width='stretch')
                         
                         m1, m2 = st.columns(2)
                         m1.metric("Missing", miss, delta_color="inverse")
@@ -440,7 +440,7 @@ if uploaded_files:
                         
                         pin_progress.empty()
                         
-                        col2.image(res_img, caption=f"Result (Thresh: {threshold})", use_container_width=True)
+                        col2.image(res_img, caption=f"Result (Thresh: {threshold})", width='stretch')
                         m1, m2 = st.columns(2)
                         m1.metric("Defects", defects, delta_color="inverse")
                         m2.metric("Good Pins", good)
@@ -461,7 +461,7 @@ if uploaded_files:
                             for idx, p in enumerate(sorted_pins):
                                 c = cols[idx % 8]
                                 status_icon = "🔴" if p['is_defect'] else "🟢"
-                                c.image(p['crop'], use_container_width=True)
+                                c.image(p['crop'], width='stretch')
                                 c.caption(f"**{status_icon} {p['score']:.2f}**")
                                 if idx > 63: 
                                     st.caption("... remaining pins hidden for performance ...")
