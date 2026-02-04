@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from scipy.spatial import KDTree
+from typing import List, Tuple
 
 def get_binary_image(img):
     """Converts RGB image to Binary using Adaptive Thresholding."""
@@ -157,3 +158,124 @@ def extract_pins(img, coords, crop_size=32):
             })
             
     return pins
+
+
+# ============================================================================
+# OPTIMIZED BATCH PROCESSING FUNCTIONS (NEW)
+# ============================================================================
+
+def extract_pins_batch_optimized(img, coords: List[Tuple[int, int]], crop_size: int = 32) -> Tuple[np.ndarray, List[dict]]:
+    """
+    Optimized batch extraction of all pins at once.
+    
+    Returns:
+        batch_crops: numpy array of shape (N, 256, 256, 3) ready for batch inference
+        pins_metadata: list of dicts with id and coords
+    """
+    if len(img.shape) == 3:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = img
+
+    # Apply CLAHE once to entire image
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    enhanced = clahe.apply(gray)
+    enhanced = cv2.GaussianBlur(enhanced, (5, 5), 0)
+    
+    h, w = enhanced.shape
+    half = crop_size // 2
+    
+    # Pre-allocate batch array for maximum efficiency
+    valid_coords = []
+    crops_list = []
+    
+    for i, (cx, cy) in enumerate(coords):
+        # Boundary checks
+        if (cy - half >= 0 and cx - half >= 0 and 
+            cy + half < h and cx + half < w):
+            
+            # Extract crop
+            crop = enhanced[cy-half:cy+half, cx-half:cx+half]
+            crops_list.append(crop)
+            valid_coords.append((i, cx, cy))
+    
+    if not crops_list:
+        return np.array([]), []
+    
+    # Batch resize all crops at once (much faster than individual resizes)
+    batch_crops_gray = np.array([
+        cv2.resize(crop, (256, 256), interpolation=cv2.INTER_CUBIC) 
+        for crop in crops_list
+    ])
+    
+    # Vectorized color conversion (convert entire batch at once)
+    batch_crops_rgb = np.stack([
+        cv2.cvtColor(crop, cv2.COLOR_GRAY2RGB) 
+        for crop in batch_crops_gray
+    ])
+    
+    # Create metadata
+    pins_metadata = [
+        {"id": i, "coords": (cx, cy)} 
+        for i, cx, cy in valid_coords
+    ]
+    
+    return batch_crops_rgb, pins_metadata
+
+
+def extract_pins_streaming(img, coords: List[Tuple[int, int]], 
+                           batch_size: int = 32, 
+                           crop_size: int = 32):
+    """
+    Generator that yields batches of pins for streaming inference.
+    Useful for very large images with 1000+ pins to avoid memory issues.
+    
+    Yields:
+        (batch_crops, batch_metadata, batch_indices)
+    """
+    if len(img.shape) == 3:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = img
+
+    # Apply CLAHE once
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    enhanced = clahe.apply(gray)
+    enhanced = cv2.GaussianBlur(enhanced, (5, 5), 0)
+    
+    h, w = enhanced.shape
+    half = crop_size // 2
+    
+    batch_crops = []
+    batch_metadata = []
+    batch_start_idx = 0
+    
+    for i, (cx, cy) in enumerate(coords):
+        if (cy - half >= 0 and cx - half >= 0 and 
+            cy + half < h and cx + half < w):
+            
+            crop = enhanced[cy-half:cy+half, cx-half:cx+half]
+            crop_resized = cv2.resize(crop, (256, 256), interpolation=cv2.INTER_CUBIC)
+            crop_rgb = cv2.cvtColor(crop_resized, cv2.COLOR_GRAY2RGB)
+            
+            batch_crops.append(crop_rgb)
+            batch_metadata.append({"id": i, "coords": (cx, cy)})
+            
+            # Yield when batch is full
+            if len(batch_crops) >= batch_size:
+                yield (
+                    np.array(batch_crops), 
+                    batch_metadata,
+                    range(batch_start_idx, batch_start_idx + len(batch_crops))
+                )
+                batch_crops = []
+                batch_metadata = []
+                batch_start_idx = i + 1
+    
+    # Yield remaining pins
+    if batch_crops:
+        yield (
+            np.array(batch_crops), 
+            batch_metadata,
+            range(batch_start_idx, batch_start_idx + len(batch_crops))
+        )
