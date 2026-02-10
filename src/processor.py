@@ -159,11 +159,6 @@ def extract_pins(img, coords, crop_size=32):
             
     return pins
 
-
-# ============================================================================
-# OPTIMIZED BATCH PROCESSING FUNCTIONS (NEW)
-# ============================================================================
-
 def extract_pins_batch_optimized(img, coords: List[Tuple[int, int]], crop_size: int = 32) -> Tuple[np.ndarray, List[dict]]:
     """
     Optimized batch extraction of all pins at once.
