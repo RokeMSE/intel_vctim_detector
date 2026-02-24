@@ -16,3 +16,5 @@ src/bubble_pins/.env
 /src/vctim/runs
 /src/models
 *.blob
+*.cl_cache
+/model_src/bubble_pins/datasets

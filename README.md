@@ -216,9 +216,8 @@ docker-compose up --build
 4. **Image Preprocessing:** Resize large images before upload to reduce processing time
 
 ## Future Enhancements
-- [ ] Add export functionality for inspection reports (CSV/PDF)
+- [X] Add export functionality for inspection reports (CSV/PDF)
 - [ ] Implement database logging for quality tracking
-- [ ] Add support for real-time camera/video stream inspection
+- [X] Add support for real-time camera/video stream inspection
 - [ ] Create REST API endpoints for integration with manufacturing systems
 - [ ] Implement automated retraining pipeline with feedback loop
-- [ ] Enhance visualization with heatmaps and statistical charts

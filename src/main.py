@@ -12,7 +12,7 @@ import processor
 import torch
 import dotenv
 import report_generator
-import batch_inference
+""" import batch_inference """
 dotenv.load_dotenv()
 
 # --- HELPER: SCAN DIALOG ---
@@ -36,6 +36,8 @@ if 'last_files_key' not in st.session_state:
     st.session_state.last_files_key = None
 if 'cached_totals' not in st.session_state:
     st.session_state.cached_totals = {'defects': 0, 'passed': 0}
+if 'last_config' not in st.session_state:
+    st.session_state.last_config = None
 
 # --- CONFIG ---
 st.set_page_config(page_title="Unified Industrial Inspector", layout="wide")
@@ -288,7 +290,7 @@ st.title("Inspection System")
 
 st.sidebar.header("Configuration")
 # mode = st.sidebar.selectbox("Select Inspection Mode", ["VCTIM Detection", "Socket Pin Defect"])
-mode = st.sidebar.selectbox("Select Inspection Mode", ["VCTIM Detection"]) # Socket Pin on hold
+mode = "VCTIM Detection" # Socket Pin on hold
 
 threshold = 0.5 
 show_crops = False
@@ -344,7 +346,20 @@ uploaded_files = st.sidebar.file_uploader(
 if uploaded_files:
     current_files_key = tuple((f.name, f.size) for f in uploaded_files)
     
-    if current_files_key == st.session_state.last_files_key:
+    # Smart Caching: Check config + files
+    current_config = {
+        'mode': mode,
+        'device': device,
+        'threshold': threshold,
+    }
+    # Note: expected_bib excluded from config so we can re-validate without re-inference
+    
+    # Check if we have valid results for all files (crash recovery)
+    results_valid = len(st.session_state.get('image_results', [])) == len(uploaded_files)
+
+    if (current_files_key == st.session_state.last_files_key and 
+        current_config == st.session_state.last_config and 
+        results_valid):
         # Use cached results
         st.write(f"### Showing cached results for {len(uploaded_files)} images in **{mode}** mode")
         st.info("📋 Results loaded from cache. Upload new files or change settings to re-run inspection.")
@@ -363,6 +378,14 @@ if uploaded_files:
                 m1, m2 = st.columns(2)
                 m1.metric("Defects" if mode == "Socket Pin Defect" else "Missing", result['defects'], delta_color="inverse")
                 m2.metric("Passed" if mode == "Socket Pin Defect" else "Normal", result['passed'])
+                
+                # Dynamic Validation for Cached Results
+                if mode == "VCTIM Detection":
+                    total_found = result['defects'] + result['passed']
+                    if total_found != expected_bib:
+                        st.error(f"⚠️ BIB Count Mismatch! Expected {expected_bib}, Found {total_found}")
+                    else:
+                        st.success(f"✅ Count Matches: {total_found}")
                 
                 st.divider()
                 st.markdown("**📝 Report Annotations (Optional)**")
@@ -550,6 +573,7 @@ if uploaded_files:
         
         # Update cache
         st.session_state.last_files_key = current_files_key
+        st.session_state.last_config = current_config
         st.session_state.cached_totals = {'defects': total_defects, 'passed': total_passed}
 
     # Common code for both cached and fresh results
@@ -578,7 +602,8 @@ if uploaded_files:
             device=device,
             image_results=image_results,
             total_defects=total_defects,
-            total_passed=total_passed
+            total_passed=total_passed,
+            expected_bib=expected_bib if mode == "VCTIM Detection" else None
         )
         
         # Determine filename
@@ -594,7 +619,7 @@ if uploaded_files:
                     break
         
         st.download_button(
-            label="🖨️ Download JPEG Report",
+            label="🖨️ Download Report (.jpeg)",
             data=jpeg_bytes,
             file_name=report_filename,
             mime="image/jpeg",

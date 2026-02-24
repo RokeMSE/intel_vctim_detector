@@ -3,15 +3,16 @@ services:
     build: .
     ports:
       - "8501:8501"
-    devices:
-      - "/dev/video0:/dev/video0" # Maps the first USB camera to the container
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      #devices:
+      #- "/dev/video0:/dev/video0" # Maps the first USB camera to the container
+      #- "/dev/USB*:/dev/USB*" # For the barcode scanner (if any)
+      # deploy:
+      #   resources:
+      #     reservations:
+      #       devices:
+      #         - driver: nvidia
+      #           count: all
+      #           capabilities: [gpu]
     volumes:
       - .:/app
     environment:

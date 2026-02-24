@@ -206,7 +206,7 @@ def generate_report(mode: str, device: str, image_results: list,
 
 
 def generate_jpeg_report(mode: str, device: str, image_results: list, 
-                         total_defects: int, total_passed: int) -> bytes:
+                         total_defects: int, total_passed: int, expected_bib: int = None) -> bytes:
     """
     Generate a JPEG report from inspection results, mimicking the PDF layout.
     Returns bytes of the generated JPEG image.
@@ -364,6 +364,14 @@ def generate_jpeg_report(mode: str, device: str, image_results: list,
         
         stats_text = f"Defects: {defects}   |   Passed: {passed}   |   Status: {status}"
         d_stats.text((20, 10), stats_text, font=font_bold, fill=color)
+        
+        # VALIDATION ERROR CHECK
+        if expected_bib is not None:
+            total_found = defects + passed
+            if total_found != expected_bib:
+                error_text = f"BIB COUNT MISMATCH: Expected {expected_bib}, Found {total_found}"
+                # Draw error text in red below stats
+                d_stats.text((20, 30), error_text, font=font_bold, fill=(255, 0, 0))
         
         res_sections.append(stats_img)
         
