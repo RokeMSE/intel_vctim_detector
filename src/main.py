@@ -12,7 +12,6 @@ import processor
 import torch
 import dotenv
 import report_generator
-""" import batch_inference """
 dotenv.load_dotenv()
 
 # --- HELPER: SCAN DIALOG ---
@@ -97,14 +96,14 @@ def run_vctim_inference(model, img, threshold):
             color = (255, 0, 0)  # Blue default
             
         # Draw box and label
-        cv2.rectangle(res_img, (x1, y1), (x2, y2), color, 2)
+        cv2.rectangle(res_img, (x1, y1), (x2, y2), color, 4)
         label_text = f"{label} {conf:.2f}"
         
         # Calculate text size for background
-        (w, h), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-        cv2.rectangle(res_img, (x1, y1 - 20), (x1 + w, y1), color, -1)
-        cv2.putText(res_img, label_text, (x1, y1 - 5), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        (w, h), baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 2.0, 2)
+        cv2.rectangle(res_img, (x1, y1 - h - baseline - 10), (x1 + w + 4, y1), color, -1)
+        cv2.putText(res_img, label_text, (x1 + 2, y1 - baseline - 5), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 2.0, (255, 255, 255), 2)
             
     return res_img, missing_count, normal_count
 
@@ -311,7 +310,7 @@ show_crops = False
 if mode == "VCTIM Detection":
     st.sidebar.subheader("🎛️ VCTIM Settings")
     threshold = st.sidebar.slider("Detection Confidence", 0.0, 1.0, 0.25, 0.05)
-    expected_bib = st.sidebar.number_input("Expected BIB Amount", min_value=5, max_value=20, value=10, step=1, help="Total number of VCTIMs (Normal + Missing) expected per unit")
+    expected_bib = st.sidebar.number_input("Expected BIB Amount", min_value=1, max_value=20, value=10, step=1, help="Total number of VCTIMs (Normal + Missing) expected per unit")
     use_webcam = st.sidebar.checkbox("Use Webcam (Real-time)")
     model_yolo = load_yolo_model(device)
 
@@ -383,7 +382,7 @@ if uploaded_files:
                 if mode == "VCTIM Detection":
                     total_found = result['defects'] + result['passed']
                     if total_found != expected_bib:
-                        st.error(f"⚠️ BIB Count Mismatch! Expected {expected_bib}, Found {total_found}")
+                        st.error(f"⚠️ MISSING VCTIM! BIB Count Mismatch! Expected {expected_bib}, Found {total_found}")
                     else:
                         st.success(f"✅ Count Matches: {total_found}")
                 
@@ -451,7 +450,7 @@ if uploaded_files:
                         # Validation
                         total_found = miss + norm
                         if total_found != expected_bib:
-                            st.error(f"⚠️ BIB Count Mismatch! Expected {expected_bib}, Found {total_found}")
+                            st.error(f"⚠️ MISSING VCTIM! BIB Count Mismatch! Expected {expected_bib}, Found {total_found}")
                         else:
                             st.success(f"✅ Count Matches: {total_found}")
                         
@@ -615,7 +614,7 @@ if uploaded_files:
                 # Sanitize filename
                 safe_id = "".join(c for c in res['unit_id'] if c.isalnum() or c in (' ', '-', '_')).strip()
                 if safe_id:
-                    report_filename = f"{safe_id}.jpg"
+                    report_filename = f"{safe_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                     break
         
         st.download_button(
