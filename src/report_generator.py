@@ -369,7 +369,7 @@ def generate_jpeg_report(mode: str, device: str, image_results: list,
         if expected_bib is not None:
             total_found = defects + passed
             if total_found != expected_bib:
-                error_text = f"MISSING VCTIM! BIB COUNT MISMATCH: Expected {expected_bib}, Found {total_found}"
+                error_text = f"MISSING VCTIM! DUT COUNT MISMATCH: Expected {expected_bib}, Found {total_found}"
                 # Draw error text in red below stats
                 d_stats.text((20, 30), error_text, font=font_bold, fill=(255, 0, 0))
         

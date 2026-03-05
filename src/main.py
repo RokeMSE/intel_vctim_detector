@@ -310,7 +310,7 @@ show_crops = False
 if mode == "VCTIM Detection":
     st.sidebar.subheader("🎛️ VCTIM Settings")
     threshold = st.sidebar.slider("Detection Confidence", 0.0, 1.0, 0.25, 0.05)
-    expected_bib = st.sidebar.number_input("Expected BIB Amount", min_value=1, max_value=20, value=10, step=1, help="Total number of VCTIMs (Normal + Missing) expected per unit")
+    expected_bib = st.sidebar.number_input("Expected DUT Amount", min_value=1, max_value=20, value=10, step=1, help="Total number of VCTIMs (Normal + Missing) expected per unit")
     use_webcam = st.sidebar.checkbox("Use Webcam (Real-time)")
     model_yolo = load_yolo_model(device)
 
@@ -382,7 +382,7 @@ if uploaded_files:
                 if mode == "VCTIM Detection":
                     total_found = result['defects'] + result['passed']
                     if total_found != expected_bib:
-                        st.error(f"⚠️ MISSING VCTIM! BIB Count Mismatch! Expected {expected_bib}, Found {total_found}")
+                        st.error(f"⚠️ MISSING VCTIM! DUT Count Mismatch! Expected {expected_bib}, Found {total_found}")
                     else:
                         st.success(f"✅ Count Matches: {total_found}")
                 
@@ -450,7 +450,7 @@ if uploaded_files:
                         # Validation
                         total_found = miss + norm
                         if total_found != expected_bib:
-                            st.error(f"⚠️ MISSING VCTIM! BIB Count Mismatch! Expected {expected_bib}, Found {total_found}")
+                            st.error(f"⚠️ MISSING VCTIM! DUT Count Mismatch! Expected {expected_bib}, Found {total_found}")
                         else:
                             st.success(f"✅ Count Matches: {total_found}")
                         
