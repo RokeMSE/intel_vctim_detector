@@ -1,13 +1,11 @@
-anomalib
 torch
 torchvision
-openvino
+#openvino
 opencv-python
 albumentations
 pandas
 omegaconf
 requests
-fiftyone
 umap-learn>=0.5
 streamlit
 fpdf2

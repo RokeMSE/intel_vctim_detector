@@ -14,7 +14,10 @@ src/bubble_pins/.env
 /src/__pycache__
 /src/vctim/data
 /src/vctim/runs
-/src/models
 *.blob
 *.cl_cache
 /model_src/bubble_pins/datasets
+/model_src/PIN
+/model_src/vctim
+/model_src/vctim_detector8
+/model_src/weights
