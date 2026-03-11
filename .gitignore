@@ -21,3 +21,8 @@ src/bubble_pins/.env
 /model_src/vctim
 /model_src/vctim_detector8
 /model_src/weights
+/src/dist/InspectionSystem
+/src/dist
+/src/build
+src/InspectionSystem.spec
+src/InspectionSystem_exeonly.spec

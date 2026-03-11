@@ -48,7 +48,10 @@ if device_choice == "GPU" and not torch.cuda.is_available():
 # --- LOAD MODELS ---
 @st.cache_resource
 def load_yolo_model(device):
-    model = YOLO('./models/VCTIM/detect/vctim_detector/weights/best.pt')
+    import os
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(base_dir, 'models', 'VCTIM', 'detect', 'vctim_detector', 'weights', 'best.pt')
+    model = YOLO(model_path)
     model.to(device)
     return model
 
